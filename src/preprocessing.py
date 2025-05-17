@@ -7,12 +7,14 @@ from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from config.params import PREPROCESSING, PATHS
+from sklearn.preprocessing import LabelEncoder
 
 class TextPreprocessor:
     def __init__(self):
         self.lemmatizer = WordNetLemmatizer()
         self.stop_words = set(stopwords.words('english'))
         self.vectorizer = None
+        self.label_encoder = LabelEncoder()
 
     def clean_text(self, text):
         text = text.lower()
@@ -27,6 +29,8 @@ class TextPreprocessor:
 
     def prepare_data(self, texts, labels):
         cleaned_texts = [self.clean_text(t) for t in texts]
+
+        y_encoded = self.label_encoder.fit_transform(labels)
         
         self.vectorizer = TfidfVectorizer(
             max_features=PREPROCESSING['max_features'],
@@ -40,7 +44,7 @@ class TextPreprocessor:
             X, labels, 
             test_size=PREPROCESSING['test_size'],
             random_state=42,
-            stratify=labels
+            stratify=y_encoded
         )
         
         self.save_vectorizer()

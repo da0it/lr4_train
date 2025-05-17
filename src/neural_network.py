@@ -9,6 +9,7 @@ class TextClassifierNN(nn.Module):
         super().__init__()
         self.fc1 = nn.Linear(input_size, NN['hidden_size'])
         self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(NN['dropout_rate'])
         self.fc2 = nn.Linear(NN['hidden_size'], num_classes)
         self._init_weights(NN['initialization'])
 
@@ -26,6 +27,7 @@ class TextClassifierNN(nn.Module):
     def forward(self, x):
         x = self.fc1(x)
         x = self.relu(x)
+        x = self.dropout(x)
         x = self.fc2(x)
         return x
 

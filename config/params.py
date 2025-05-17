@@ -1,6 +1,6 @@
 # Параметры предобработки
 PREPROCESSING = {
-    'max_features': 15000,
+    'max_features': 20000,
     'min_df': 5,
     'max_df': 0.85,
     'ngram_range': (1, 2),

@@ -13,7 +13,7 @@ def load_data():
     
     # Фильтрация или дополнительная обработка
     df = df[df['text'].notna()]  # Удаляем пустые тексты
-    df = df[df['label'].isin(['pos', 'neg'])]  # Фильтруем только определенные метки
+    df = df[df['label'].isin(['Positive', 'Negative', 'Neutral'])]  # Фильтруем только определенные метки
     
     # Дополнительные преобразования при необходимости
     texts = df['text'].values
@@ -23,28 +23,29 @@ def load_data():
 
 
 def main():
-    # 1. Загрузка и подготовка данных
-    texts, labels = load_data()
+    # 1. Загрузка данных
+    texts, labels = load_data()  # Ваши данные с метками Positive/Negative/Neutral
+    
+    # 2. Подготовка данных
     preprocessor = TextPreprocessor()
     X_train, X_test, y_train, y_test = preprocessor.prepare_data(texts, labels)
     
-    # 2. Обучение линейной модели
-    print("\nTraining Linear Model...")
-    linear_model = LinearClassifier()
-    linear_model.train(X_train, y_train, X_test, y_test)
-    evaluate_linear_model(linear_model.model, X_test, y_test)
-    plot_metrics(linear_model.train_loss, 
-                [1-acc for acc in linear_model.test_accuracy], 
-                "Loss")
-    
     # 3. Обучение нейросети
-    print("\nTraining Neural Network...")
-    nn_trainer = NNTrainer(X_train.shape[1], len(np.unique(labels)))
+    print("\nTraining Neural Network for 3-class classification...")
+    nn_trainer = NNTrainer(
+        input_size=X_train.shape[1],
+        num_classes=len(preprocessor.label_encoder.classes_)
+    )
     nn_trainer.train(X_train, y_train, X_test, y_test)
     nn_trainer.save_model()
     
-    # Оценка нейросети
-    evaluate_nn(nn_trainer.model, X_test, y_test)
+    # 4. Оценка
+    evaluate_nn(
+        nn_trainer.model, 
+        X_test, 
+        y_test,
+        label_encoder=preprocessor.label_encoder  # Передаем для расшифровки меток
+    )
 
 if __name__ == "__main__":
     main()
