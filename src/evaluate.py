@@ -1,3 +1,6 @@
+import sys
+sys.path.append('../')
+import config
 from sklearn.metrics import accuracy_score, f1_score, classification_report
 import matplotlib.pyplot as plt
 import joblib

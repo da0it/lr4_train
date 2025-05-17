@@ -1,3 +1,6 @@
+import sys
+sys.path.append('../')
+import config
 import re
 import joblib
 import numpy as np

@@ -1,3 +1,6 @@
+import sys
+sys.path.append('../')
+import config
 import torch
 import torch.nn as nn
 import torch.optim as optim

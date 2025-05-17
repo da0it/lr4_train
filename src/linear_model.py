@@ -1,3 +1,6 @@
+import sys
+sys.path.append('../')
+import config
 import joblib
 import numpy as np
 from sklearn.linear_model import SGDClassifier

@@ -6,20 +6,31 @@ from config.params import PREPROCESSING, NN
 import joblib
 import numpy as np
 import pandas as pd
+from pathlib import Path
 
 # Пример загрузки данных (замените на свои данные)
 def load_data():
-    df = pd.read_csv('data/twitter_training.csv')
+    data_path = Path(__file__).parent.parent / "data" / "twitter_training.csv"
     
-    # Фильтрация или дополнительная обработка
-    df = df[df['text'].notna()]  # Удаляем пустые тексты
-    df = df[df['label'].isin(['Positive', 'Negative', 'Neutral'])]  # Фильтруем только определенные метки
+    try:
+        # Чтение CSV с указанием нужных столбцов
+        df = pd.read_csv(
+            data_path,
+            header=None,  # Если нет заголовков
+            names=['id', 'game', 'sentiment', 'text'],  # Назначаем имена столбцов
+            usecols=[3, 2],  # Берем только столбцы text (3) и sentiment (2)
+            quoting=3  # Для корректной обработки кавычек
+        )
+        
+        # Фильтрация данных
+        df = df[df['sentiment'].isin(['Positive', 'Negative', 'Neutral'])]
+        df = df.dropna(subset=['text', 'sentiment'])
+        
+        return df['text'].values, df['sentiment'].values
     
-    # Дополнительные преобразования при необходимости
-    texts = df['text'].values
-    labels = df['label'].map({'pos': 1, 'neg': 0}).values  # Преобразование строковых меток в числовые
-    
-    return texts, labels
+    except FileNotFoundError:
+        print("Ошибка: Файл data/twitter_training.csv не найден!")
+        exit(1)
 
 
 def main():
