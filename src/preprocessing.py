@@ -1,50 +1,50 @@
 import re
+import joblib
+import numpy as np
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-import nltk
-from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
+from config.params import PREPROCESSING, PATHS
 
-# Загрузка необходимых ресурсов NLTK
-nltk.download('punkt')
-nltk.download('wordnet')
-nltk.download('stopwords')
+class TextPreprocessor:
+    def __init__(self):
+        self.lemmatizer = WordNetLemmatizer()
+        self.stop_words = set(stopwords.words('english'))
+        self.vectorizer = None
 
-def normalize_text(text, lemmatize=True):
-    # Приведение к нижнему регистру
-    text = text.lower()
-    
-    # Удаление специальных символов и цифр
-    text = re.sub(r'[^a-zA-Z\s]', '', text)
-    
-    # Токенизация
-    tokens = word_tokenize(text)
-    
-    # Удаление стоп-слов
-    stop_words = set(stopwords.words('english'))
-    tokens = [token for token in tokens if token not in stop_words]
-    
-    # Лемматизация
-    if lemmatize:
-        lemmatizer = WordNetLemmatizer()
-        tokens = [lemmatizer.lemmatize(token) for token in tokens]
-    
-    return ' '.join(tokens)
+    def clean_text(self, text):
+        text = text.lower()
+        text = re.sub(r'[^a-z\s]', '', text)
+        tokens = word_tokenize(text)
+        tokens = [t for t in tokens if t not in self.stop_words]
+        
+        if PREPROCESSING['lemmatize']:
+            tokens = [self.lemmatizer.lemmatize(t) for t in tokens]
+            
+        return ' '.join(tokens)
 
-# Пример использования
-# df['text'] = df['text'].apply(normalize_text)
+    def prepare_data(self, texts, labels):
+        cleaned_texts = [self.clean_text(t) for t in texts]
+        
+        self.vectorizer = TfidfVectorizer(
+            max_features=PREPROCESSING['max_features'],
+            min_df=PREPROCESSING['min_df'],
+            max_df=PREPROCESSING['max_df'],
+            ngram_range=PREPROCESSING['ngram_range']
+        )
+        
+        X = self.vectorizer.fit_transform(cleaned_texts)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, labels, 
+            test_size=PREPROCESSING['test_size'],
+            random_state=42,
+            stratify=labels
+        )
+        
+        self.save_vectorizer()
+        return X_train, X_test, y_train, y_test
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-
-# Создание TF-IDF векторайзера с удалением редких слов
-vectorizer = TfidfVectorizer(
-    max_features=10000,  # ограничение количества признаков
-    min_df=5,            # минимальная частота слова
-    max_df=0.8,          # максимальная частота слова
-    ngram_range=(1, 2)   # униграммы и биграммы
-)
-
-# Преобразование текста в векторы
-X_train_tfidf = vectorizer.fit_transform(X_train)
-X_test_tfidf = vectorizer.transform(X_test)
+    def save_vectorizer(self):
+        joblib.dump(self.vectorizer, PATHS['vectorizer'])
