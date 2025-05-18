@@ -4,6 +4,7 @@ import config
 import re
 import joblib
 import numpy as np
+import nltk
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -11,6 +12,18 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from config.params import PREPROCESSING, PATHS
 from sklearn.preprocessing import LabelEncoder
+
+def init_nltk():
+    try:
+        nltk.data.find('corpora/stopwords')
+        nltk.download('punkt_tab')
+    except LookupError:
+        nltk.download('stopwords')
+        nltk.download('punkt')
+        nltk.download('wordnet')
+        
+
+init_nltk()
 
 class TextPreprocessor:
     def __init__(self):
