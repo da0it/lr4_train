@@ -22,7 +22,8 @@ LINEAR = {
 NN = {
     'hidden_size': 256,
     'learning_rate': 0.001,
-    'num_epochs': 30,
+    'num_epochs': 2,
+    'dropout_rate': 0.3,
     'batch_size': 128,
     'initialization': 'he'  # 'xavier', 'he' или 'zeros'
 }
