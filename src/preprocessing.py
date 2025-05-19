@@ -12,6 +12,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from config.params import PREPROCESSING, PATHS
 from sklearn.preprocessing import LabelEncoder
+import os
+from pathlib import Path
 
 def init_nltk():
     try:
@@ -44,6 +46,9 @@ class TextPreprocessor:
         return ' '.join(tokens)
 
     def prepare_data(self, texts, labels):
+        if isinstance(labels[0], str):
+            labels = self.label_encoder.fit_transform(labels)
+        
         cleaned_texts = [self.clean_text(t) for t in texts]
 
         y_encoded = self.label_encoder.fit_transform(labels)
@@ -67,4 +72,13 @@ class TextPreprocessor:
         return X_train, X_test, y_train, y_test
 
     def save_vectorizer(self):
-        joblib.dump(self.vectorizer, PATHS['vectorizer'])
+        """Сохраняет векторизатор с автоматическим созданием папки"""
+        # Получаем абсолютный путь
+        save_path = Path(__file__).parent.parent / PATHS['vectorizer']
+        
+        # Создаем папку, если ее нет
+        os.makedirs(save_path.parent, exist_ok=True)
+        
+        # Сохраняем векторизатор
+        joblib.dump(self.vectorizer, save_path)
+        print(f"Векторизатор сохранен в {save_path}")

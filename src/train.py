@@ -1,10 +1,11 @@
 from preprocessing import TextPreprocessor
+from sklearn.preprocessing import LabelEncoder
 from neural_network import NNTrainer
 from evaluate import evaluate_nn
 from config.params import PREPROCESSING, NN
-import pandas as pd
 from pathlib import Path
-import sys
+import pandas as pd
+import sys, os, joblib
 
 def load_data():
     """Загрузка данных с учетом особенностей формата"""
@@ -22,7 +23,7 @@ def load_data():
             on_bad_lines='warn',
             engine='python'
         )
-        
+
         # Удаление возможных пустых столбцов
         df = df.dropna(axis=1, how='all')
         
@@ -36,10 +37,20 @@ def load_data():
         df = df.dropna(subset=['text', 'sentiment'])
         df = df[df['text'].str.strip().astype(bool)]
         
+        label_encoder = LabelEncoder()
+        labels = label_encoder.fit_transform(df['sentiment'])
+
+        os.makedirs('models', exist_ok=True)
+        joblib.dump(label_encoder, 'models/label_encoder.pkl')
+
         print("\nРаспределение меток:")
         print(df['sentiment'].value_counts())
         
-        return df['text'].values, df['sentiment'].values
+        print("Пример преобразования меток:")
+        for original, encoded in zip(df['sentiment'][:5], labels[:5]):
+            print(f"{original} -> {encoded}")
+        
+        return df['text'].values, labels
         
     except Exception as e:
         print(f"Ошибка загрузки: {str(e)}")
@@ -49,6 +60,9 @@ def main():
     # 1. Загрузка данных
     print("Загрузка данных...")
     texts, labels = load_data()
+
+    # Проверка меток
+    print(f"Тип меток: {type(labels[0])}, Примеры: {labels[:10]}")
     
     # 2. Подготовка данных
     print("\nПодготовка данных...")
@@ -70,7 +84,7 @@ def main():
         nn_trainer.model, 
         X_test, 
         y_test,
-        preprocessor.label_encoder
+        label_encoder=preprocessor.label_encoder
     )
 
 if __name__ == "__main__":

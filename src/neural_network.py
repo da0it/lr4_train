@@ -6,13 +6,15 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from config.params import NN, PATHS
+from scipy.sparse import csr_matrix
+import numpy as np
 
 class TextClassifierNN(nn.Module):
     def __init__(self, input_size, num_classes):
         super().__init__()
         self.fc1 = nn.Linear(input_size, NN['hidden_size'])
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(NN['dropout_rate'])
+        self.dropout = nn.Dropout(NN.get('dropout_rate', 0.3))
         self.fc2 = nn.Linear(NN['hidden_size'], num_classes)
         self._init_weights(NN['initialization'])
 
@@ -73,8 +75,18 @@ class NNTrainer:
         return correct / len(loader.dataset)
 
     def _create_loader(self, X, y, shuffle):
-        X_tensor = torch.tensor(X.toarray(), dtype=torch.float32)
+        """Создание DataLoader с проверкой типов данных"""
+        # Преобразование sparse matrix в dense
+        if hasattr(X, 'toarray'):
+            X = X.toarray()
+        
+        # Проверка и преобразование меток
+        if isinstance(y[0], str):
+            raise ValueError("Метки должны быть числовыми. Используйте LabelEncoder для преобразования")
+        
+        X_tensor = torch.tensor(X, dtype=torch.float32)
         y_tensor = torch.tensor(y, dtype=torch.long)
+        
         dataset = TensorDataset(X_tensor, y_tensor)
         return DataLoader(dataset, batch_size=NN['batch_size'], shuffle=shuffle)
 
