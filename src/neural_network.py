@@ -1,22 +1,18 @@
-import sys
-sys.path.append('../')
-import config
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-from config.params import NN, PATHS
-from scipy.sparse import csr_matrix
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.base import BaseEstimator
 
 class TextClassifierNN(nn.Module):
     def __init__(self, input_size, num_classes, initialization='xavier'):
         super().__init__()
-        self.fc1 = nn.Linear(input_size, NN['hidden_size'])
+        self.fc1 = nn.Linear(input_size, 128)
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(NN.get('dropout_rate', 0.3))
-        self.fc2 = nn.Linear(NN['hidden_size'], num_classes)
+        self.dropout = nn.Dropout(0.3)
+        self.fc2 = nn.Linear(128, num_classes)
         self._init_weights(initialization)
 
     def _init_weights(self, method):
@@ -26,9 +22,11 @@ class TextClassifierNN(nn.Module):
         elif method == 'he':
             nn.init.kaiming_uniform_(self.fc1.weight, mode='fan_in', nonlinearity='relu')
             nn.init.kaiming_uniform_(self.fc2.weight, mode='fan_in', nonlinearity='relu')
-        else:  # 'zero'
+        else:
             nn.init.zeros_(self.fc1.weight)
             nn.init.zeros_(self.fc2.weight)
+        nn.init.zeros_(self.fc1.bias)
+        nn.init.zeros_(self.fc2.bias)
 
     def forward(self, x):
         x = self.fc1(x)
@@ -39,102 +37,95 @@ class TextClassifierNN(nn.Module):
 
 class NNTrainer:
     def __init__(self, input_size, num_classes):
-        self.model = TextClassifierNN(input_size, num_classes, initialization='xavier')
-        self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=NN['learning_rate'])
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model.to(self.device)
-        # Создаем модели с разными инициализациями
         self.models = {
-            'zero': self._build_model(input_size, num_classes, 'zero'),
-            'xavier': self._build_model(input_size, num_classes, 'xavier'),
-            'he': self._build_model(input_size, num_classes, 'he')
+            'zero': TextClassifierNN(input_size, num_classes, 'zero').to(self.device),
+            'xavier': TextClassifierNN(input_size, num_classes, 'xavier').to(self.device),
+            'he': TextClassifierNN(input_size, num_classes, 'he').to(self.device)
         }
-        self.history = {init: {'train': [], 'test': []} for init in self.models}
-
-    def _build_model(self, input_size, num_classes, initialization):
-        """Создает новую модель TextClassifierNN с указанной инициализацией"""
-        model = TextClassifierNN(input_size, num_classes, initialization)
-        model.to(self.device)
-        return model
-
-    def train(self, X_train, y_train, X_test, y_test):
-        X_train_t = torch.tensor(X_train.toarray(), dtype=torch.float32).to(self.device)
-        X_test_t = torch.tensor(X_test.toarray(), dtype=torch.float32).to(self.device)
-        y_train_t = torch.tensor(y_train, dtype=torch.long).to(self.device)
-        y_test_t = torch.tensor(y_test, dtype=torch.long).to(self.device)
+        self.history = {init: {'train_loss': [], 'test_loss': [], 'train_acc': [], 'test_acc': []} 
+                       for init in self.models}
+        
+    def train(self, X_train, y_train, X_test, y_test, num_epochs=50, batch_size=64, lr=0.001):
+        # Преобразование данных в тензоры
+        train_dataset = TensorDataset(
+            torch.tensor(X_train.toarray(), dtype=torch.float32),
+            torch.tensor(y_train, dtype=torch.long)
+        )
+        test_dataset = TensorDataset(
+            torch.tensor(X_test.toarray(), dtype=torch.float32),
+            torch.tensor(y_test, dtype=torch.long)
+        )
+        
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size)
         
         for init, model in self.models.items():
             print(f"\nTraining with {init} initialization...")
-            optimizer = optim.Adam(model.parameters(), lr=NN['learning_rate'])
+            optimizer = optim.Adam(model.parameters(), lr=lr)
+            criterion = nn.CrossEntropyLoss()
             
-            for epoch in range(NN['num_epochs']):
-                # Train
+            for epoch in range(num_epochs):
+                # Training phase
                 model.train()
-                optimizer.zero_grad()
-                outputs = model(X_train_t)
-                loss = nn.CrossEntropyLoss()(outputs, y_train_t)
-                loss.backward()
-                optimizer.step()
-                self.history[init]['train'].append(loss.item())
+                train_loss, correct, total = 0, 0, 0
+                for inputs, labels in train_loader:
+                    inputs, labels = inputs.to(self.device), labels.to(self.device)
+                    optimizer.zero_grad()
+                    outputs = model(inputs)
+                    loss = criterion(outputs, labels)
+                    loss.backward()
+                    optimizer.step()
+                    
+                    train_loss += loss.item()
+                    _, predicted = outputs.max(1)
+                    total += labels.size(0)
+                    correct += predicted.eq(labels).sum().item()
                 
-                # Test
+                # Evaluation phase
+                test_loss, test_correct, test_total = 0, 0, 0
                 model.eval()
                 with torch.no_grad():
-                    test_loss = nn.CrossEntropyLoss()(model(X_test_t), y_test_t).item()
-                    self.history[init]['test'].append(test_loss)
+                    for inputs, labels in test_loader:
+                        inputs, labels = inputs.to(self.device), labels.to(self.device)
+                        outputs = model(inputs)
+                        test_loss += criterion(outputs, labels).item()
+                        _, predicted = outputs.max(1)
+                        test_total += labels.size(0)
+                        test_correct += predicted.eq(labels).sum().item()
                 
-                if epoch % 5 == 0:
-                    print(f"Epoch {epoch}: Train Loss={loss.item():.4f}, Test Loss={test_loss:.4f}")
+                # Save metrics
+                self.history[init]['train_loss'].append(train_loss/len(train_loader))
+                self.history[init]['test_loss'].append(test_loss/len(test_loader))
+                self.history[init]['train_acc'].append(correct/total)
+                self.history[init]['test_acc'].append(test_correct/test_total)
+                
+                if epoch % 5 == 0 or epoch == num_epochs-1:
+                    print(f"Epoch {epoch}: "
+                          f"Train Loss={self.history[init]['train_loss'][-1]:.4f}, "
+                          f"Test Loss={self.history[init]['test_loss'][-1]:.4f}, "
+                          f"Train Acc={self.history[init]['train_acc'][-1]:.4f}, "
+                          f"Test Acc={self.history[init]['test_acc'][-1]:.4f}")
 
     def plot_training(self):
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(12, 8))
         for init in self.models:
-            plt.plot(self.history[init]['train'], label=f'{init} train')
-            plt.plot(self.history[init]['test'], '--', label=f'{init} test')
-        plt.title('Training Comparison')
+            plt.plot(self.history[init]['train_loss'], label=f'{init} train')
+            plt.plot(self.history[init]['test_loss'], '--', label=f'{init} test')
+        plt.title('Training Loss Comparison')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
         plt.legend()
         plt.grid()
         plt.show()
-
-    def _train_epoch(self, loader):
-        self.model.train()
-        for X_batch, y_batch in loader:
-            X_batch, y_batch = X_batch.to(self.device), y_batch.to(self.device)
-            self.optimizer.zero_grad()
-            outputs = self.model(X_batch)
-            loss = self.criterion(outputs, y_batch)
-            loss.backward()
-            self.optimizer.step()
-
-    def _evaluate(self, loader):
-        self.model.eval()
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for X_batch, y_batch in loader:
-                X_batch, y_batch = X_batch.to(self.device), y_batch.to(self.device)
-                outputs = self.model(X_batch)
-                _, predicted = torch.max(outputs, 1)
-                correct += (predicted == y_batch).sum().item()
-                total += y_batch.size(0)
-        return correct / total
-
-    def _create_loader(self, X, y, shuffle):
-        """Создание DataLoader с проверкой типов данных"""
-        if hasattr(X, 'toarray'):
-            X = X.toarray()
         
-        if isinstance(y[0], str):
-            raise ValueError("Метки должны быть числовыми. Используйте LabelEncoder для преобразования")
-        
-        X_tensor = torch.tensor(X, dtype=torch.float32)
-        y_tensor = torch.tensor(y, dtype=torch.long)
-        
-        dataset = TensorDataset(X_tensor, y_tensor)
-        return DataLoader(dataset, batch_size=NN['batch_size'], shuffle=shuffle)
-
-    def save_model(self):
-        torch.save(self.model.state_dict(), PATHS['neural_net'])
+        plt.figure(figsize=(12, 8))
+        for init in self.models:
+            plt.plot(self.history[init]['train_acc'], label=f'{init} train')
+            plt.plot(self.history[init]['test_acc'], '--', label=f'{init} test')
+        plt.title('Training Accuracy Comparison')
+        plt.xlabel('Epoch')
+        plt.ylabel('Accuracy')
+        plt.legend()
+        plt.grid()
+        plt.show()
