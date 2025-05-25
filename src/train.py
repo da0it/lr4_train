@@ -1,9 +1,10 @@
 from preprocessing import TextPreprocessor
 from sklearn.preprocessing import LabelEncoder
-from neural_network import NNTrainer
+from neural_network import NNTrainer, EarlyStopping
 from linear_model import LinearClassifier
 from evaluate import evaluate_nn
 from config.params import PREPROCESSING, NN
+from sklearn.metrics import accuracy_score, f1_score, classification_report
 from pathlib import Path
 import pandas as pd
 import sys
@@ -11,7 +12,9 @@ import os
 import joblib
 import numpy as np
 import torch
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+import nltk
+
+nltk.download('punkt_tab')
 
 def load_data():
     try:
@@ -54,15 +57,14 @@ def main():
     preprocessor = TextPreprocessor()
     X_train, X_test, y_train, y_test = preprocessor.prepare_data(texts, labels)
     
-    # Получаем имена признаков ДО их использования
     feature_names = preprocessor.vectorizer.get_feature_names_out()
     
-    # Линейная модель L2
+    # # Линейная модель L2
     print("\n=== Логистическая регрессия (L2) ===")
     linear_l2 = LinearClassifier()
     linear_l2.train(X_train, y_train, X_test, y_test, penalty='l2')
     linear_l2.plot_training()
-    linear_l2.plot_weights(feature_names, target_names=class_names)  # Теперь feature_names определен
+    linear_l2.plot_weights(feature_names, target_names=class_names)
     
     print("\nОценка модели L2:")
     y_pred_l2 = linear_l2.model.predict(X_test)

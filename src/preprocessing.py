@@ -5,6 +5,7 @@ import re
 import joblib
 import numpy as np
 import nltk
+import os
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -12,7 +13,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from config.params import PREPROCESSING, PATHS
 from sklearn.preprocessing import LabelEncoder
-import os
 from pathlib import Path
 
 def init_nltk():
@@ -72,13 +72,11 @@ class TextPreprocessor:
         return X_train, X_test, y_train, y_test
 
     def save_vectorizer(self):
-        """Сохраняет векторизатор с автоматическим созданием папки"""
-        # Получаем абсолютный путь
         save_path = Path(__file__).parent.parent / PATHS['vectorizer']
         
-        # Создаем папку, если ее нет
+        # Create folder if not exist
         os.makedirs(save_path.parent, exist_ok=True)
         
-        # Сохраняем векторизатор
+        # Save vectorizer
         joblib.dump(self.vectorizer, save_path)
         print(f"Векторизатор сохранен в {save_path}")

@@ -4,11 +4,29 @@ import config
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import numpy as np
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, TensorDataset
 from config.params import NN, PATHS
 from scipy.sparse import csr_matrix
-import numpy as np
-import matplotlib.pyplot as plt
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+
+class EarlyStopping:
+    def __init__(self, patience=5, min_delta=0.001):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.best_loss = float('inf')
+        
+    def __call__(self, val_loss):
+        if val_loss < self.best_loss - self.min_delta:
+            self.best_loss = val_loss
+            self.counter = 0
+        else:
+            self.counter += 1
+            if self.counter >= self.patience:
+                return True
+        return False
 
 class TextClassifierNN(nn.Module):
     def __init__(self, input_size, num_classes, initialization='xavier'):
@@ -26,7 +44,7 @@ class TextClassifierNN(nn.Module):
         elif method == 'he':
             nn.init.kaiming_uniform_(self.fc1.weight, mode='fan_in', nonlinearity='relu')
             nn.init.kaiming_uniform_(self.fc2.weight, mode='fan_in', nonlinearity='relu')
-        else:  # 'zero'
+        else: 
             nn.init.zeros_(self.fc1.weight)
             nn.init.zeros_(self.fc2.weight)
 
@@ -44,7 +62,7 @@ class NNTrainer:
         self.optimizer = optim.Adam(self.model.parameters(), lr=NN['learning_rate'])
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model.to(self.device)
-        # Создаем модели с разными инициализациями
+
         self.models = {
             'zero': self._build_model(input_size, num_classes, 'zero'),
             'xavier': self._build_model(input_size, num_classes, 'xavier'),
@@ -53,12 +71,14 @@ class NNTrainer:
         self.history = {init: {'train': [], 'test': []} for init in self.models}
 
     def _build_model(self, input_size, num_classes, initialization):
-        """Создает новую модель TextClassifierNN с указанной инициализацией"""
         model = TextClassifierNN(input_size, num_classes, initialization)
         model.to(self.device)
         return model
 
     def train(self, X_train, y_train, X_test, y_test):
+        early_stopping = EarlyStopping(patience=5)
+        scheduler = ReduceLROnPlateau(self.optimizer, 'min', patience=3, factor=0.5)
+
         X_train_t = torch.tensor(X_train.toarray(), dtype=torch.float32).to(self.device)
         X_test_t = torch.tensor(X_test.toarray(), dtype=torch.float32).to(self.device)
         y_train_t = torch.tensor(y_train, dtype=torch.long).to(self.device)
@@ -67,7 +87,7 @@ class NNTrainer:
         for init, model in self.models.items():
             print(f"\nTraining with {init} initialization...")
             optimizer = optim.Adam(model.parameters(), lr=NN['learning_rate'])
-            
+
             for epoch in range(NN['num_epochs']):
                 # Train
                 model.train()
@@ -86,7 +106,13 @@ class NNTrainer:
                 
                 if epoch % 5 == 0:
                     print(f"Epoch {epoch}: Train Loss={loss.item():.4f}, Test Loss={test_loss:.4f}")
-
+                    
+                # Stops early stepping out of learning process
+                scheduler.step(test_loss)
+                if epoch > 95 and early_stopping(test_loss):
+                    print(f"Early stopping at epoch {epoch}")
+                    break
+               
     def plot_training(self):
         plt.figure(figsize=(12, 6))
         for init in self.models:
@@ -123,7 +149,6 @@ class NNTrainer:
         return correct / total
 
     def _create_loader(self, X, y, shuffle):
-        """Создание DataLoader с проверкой типов данных"""
         if hasattr(X, 'toarray'):
             X = X.toarray()
         

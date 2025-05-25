@@ -3,9 +3,9 @@ sys.path.append('../')
 import config
 import joblib
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.linear_model import SGDClassifier
 from config.params import LINEAR, PATHS
-import matplotlib.pyplot as plt
 from sklearn.metrics import log_loss, accuracy_score
 
 class LinearClassifier:
@@ -16,9 +16,13 @@ class LinearClassifier:
         self.train_acc = []
         self.test_acc = []
 
-    def train(self, X_train, y_train, X_test, y_test, penalty='l2', n_epochs=50):
+    def train(self, X_train, y_train, X_test, y_test, penalty='l2', n_epochs=1000, early_stop_patience=5):
+        best_loss = float('inf')
+        no_improve = 0
+        
         params = LINEAR.copy()
         params['penalty'] = penalty
+        params['early_stopping'] = False
         self.model = SGDClassifier(**params)
         
         for epoch in range(n_epochs):
@@ -36,15 +40,21 @@ class LinearClassifier:
             
             if epoch % 10 == 0:
                 print(f"Epoch {epoch}: Train Loss={train_loss:.4f}, Test Loss={test_loss:.4f}")
+            # if test_loss < best_loss - 0.001:
+            #     best_loss = test_loss
+            #     no_improve = 0
+            # else:
+            #     no_improve += 1
+            # if no_improve >= early_stop_patience:
+            #     print(f"Early stopping at epoch {epoch}")
+            #     break
         
         self.save_model()
         return self.model
     
     def plot_weights(self, feature_names, target_names=None, top_n=20):
-        """Визуализация важности признаков с текстовыми метками"""
         plt.figure(figsize=(10, 6))
         
-        # Используем текстовые метки если они есть, иначе числовые
         class_labels = target_names if target_names is not None else [f'Class {i}' for i in self.model.classes_]
         
         for i, class_name in enumerate(self.model.classes_):
@@ -64,7 +74,6 @@ class LinearClassifier:
         plt.show()
     
     def plot_training(self, target_names=None):
-        """График обучения с улучшенным оформлением"""
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
         
         # Loss plot

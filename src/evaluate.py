@@ -1,9 +1,9 @@
 import torch
 import numpy as np
-from sklearn.metrics import classification_report, confusion_matrix
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.base import BaseEstimator
+from sklearn.metrics import classification_report, confusion_matrix
 
 def evaluate_nn(model, X_test, y_test, label_encoder=None, target_names=None):
     """Оценка модели (работает и с sklearn, и с PyTorch моделями)"""
